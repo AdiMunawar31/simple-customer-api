@@ -1,0 +1,405 @@
+Pendahuluan
+
+Dalam pengembangan aplikasi modern, seringkali kita perlu mengintegrasikan berbagai teknologi untuk memenuhi kebutuhan fungsionalitas dan performa. Dalam artikel ini, kita akan membahas langkah-langkah untuk mengintegrasikan Redis, Kafka, Elastic Search, dan PostgreSQL dalam aplikasi Spring Boot.
+
+Langkah 1: Konfigurasi Proyek Spring Boot
+
+Pertama-tama, buat proyek Spring Boot baru dengan menggunakan Spring Initializer. Pilih dependensi Spring Web, Spring Data JPA, Postgre Driver, Lombok, Spring Data Elasticsearch, Spring for Apache Kafka, dan Spring Data Redis. Download proyek dan impor ke dalam IDE pilihan Anda.
+
+Langkah 2: Struktur Folder dan File
+
+Setelah proyek dibuat, susun struktur folder dan file sesuai dengan spesifikasi yang telah diberikan:
+
+/src
+  /main
+    /java
+      /com
+        /yourcompany
+          /ecommerce
+            - controllers
+              CustomerController.java
+            - dtos
+              CustomerDto.java
+              InputCustomer.java
+            - kafka
+              KafkaConsumer.java
+              KafkaProducerConfig.java
+            - models
+              Customer.java
+              CustomerElastic.java
+            - repositories
+              CustomerElasticRepository.java
+              CustomerRepository.java
+            - services
+              CustomerService.java
+            EcommerceApplication.java
+    /resources
+      application.properties
+
+Langkah 3: Konfigurasi Database PostgreSQL
+
+Buka file application.properties dan konfigurasikan sambungan database PostgreSQL:
+
+spring.datasource.driver-class-name=org.postgresql.Driver
+spring.datasource.url=jdbc:postgresql://localhost:5432/YOUR_DB
+spring.datasource.username=YOUR_USER
+spring.datasource.password=YOUR_PASS
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+
+Pastikan untuk mengganti YOUR_DB, YOUR_USER, dan YOUR_PASS dengan informasi yang sesuai.
+
+Langkah 4: Konfigurasi Elasticsearch
+
+Tambahkan konfigurasi Elasticsearch ke file application.properties:
+
+spring.data.elasticsearch.cluster-names=customerService
+spring.data.elasticsearch.cluster-node=localhost:9200
+
+Langkah 5: Konfigurasi Redis
+
+Tambahkan konfigurasi Redis ke file application.properties:
+
+spring.redis.host=localhost
+spring.redis.port=6379
+spring.cache.redis.time-to-live=86400000
+spring.cache.cache-name=customers
+spring.cache.redis.key-prefix=ecommerce-
+
+Pastikan untuk menyesuaikan nilai sesuai dengan pengaturan Redis Anda.
+
+Langkah 6: Konfigurasi Apache Kafka
+
+Tambahkan konfigurasi Apache Kafka ke file application.properties:
+
+# Konfigurasi Consumer Servers
+spring.kafka.consumer.bootstrap-servers=localhost:9092
+spring.kafka.consumer.group-id=customer-group
+spring.kafka.consumer.auto-offset-reset=earliest
+spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+
+# Konfigurasi Producer Servers
+spring.kafka.producer.bootstrap-servers=localhost:9092
+spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer
+spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringDeserializer
+
+Pastikan untuk menyesuaikan nilai sesuai dengan pengaturan Apache Kafka Anda. Kemudian buat file konfigurasi untuk producer nya di dalam folder kafka/KafkaProducerConfig:
+
+package com.yourcompany.ecommerce.kafka;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.support.serializer.JsonSerializer;
+
+@Configuration
+public class KafkaProducerConfig {
+
+  @Bean
+  public ProducerFactory<String, String> producerFactory() {
+    Map<String, Object> configProps = new HashMap<>();
+    configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "http://0.0.0.0:9092");
+    configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+    return new DefaultKafkaProducerFactory<>(configProps);
+  }
+
+  @Bean
+  public KafkaTemplate<String, String> kafkaTemplate() {
+    return new KafkaTemplate<>(producerFactory());
+  }
+}
+
+Langkah 7: Membuat Model
+
+Buat kelas model Customer dan CustomerElastic untuk representasi data di PostgreSQL dan Elasticsearch :
+
+// Customer.java
+package com.d2y.ecommerce.models;
+
+// Import Dependency 
+
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Entity
+@Table(name = "customers")
+public class Customer implements Serializable {
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long customerId;
+  private String name;
+  private String address;
+  private String city;
+  private String province;
+  private Boolean status;
+}
+
+// CustomerElastic.java
+
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Document(indexName = "customer")
+public class CustomerElastic {
+  private Long id;
+  private String name;
+  private String address;
+  private String city;
+  private String province;
+  private Boolean status;
+}
+
+Langkah 8: Membuat DTO
+
+Buat juga kelas DTO CustomerDto dan InputCustomerDTO untuk mengelola data masukan dan keluaran dari REST API.
+
+// CustomerDto.java 
+package com.yourcompany.ecommerce.dtos;
+
+// Import Dependency
+
+@Builder
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class CustomerDTO implements Serializable {
+  private Long customerId;
+  private String name;
+  private String address;
+  private String city;
+  private String province;
+  private Boolean status;
+}
+
+//InputCustomerDTO.java
+@Builder
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class InputCustomerDTO {
+  private String name;
+  private String address;
+  private String city;
+  private String province;
+  private Boolean status;
+}
+
+Langkah 8: Membuat Repository
+
+Buat repository untuk mengakses data dari PostgreSQL dan Elasticsearch:
+
+// CustomerRepository.java
+package com.yourcompany.ecommerce.repositories;
+
+import com.yourcompany.ecommerce.models.Customer;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface CustomerRepository extends JpaRepository<Customer, Long> {
+}
+
+// CustomerElasticRepository.java
+package com.yourcompany.ecommerce.repositories;
+
+import com.yourcompany.ecommerce.models.CustomerElastic;
+import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
+
+public interface CustomerElasticRepository extends ElasticsearchRepository<CustomerElastic, Long> {
+}
+
+Langkah 9: Membuat Service
+
+Buat kelas service CustomerService untuk menangani logika bisnis dan pada service ini juga kita mengimplementasikan redis dengan anotasi @CacheConfig dan @Cachable. Kemudian pada createCustomer kita mengirimkan juga data ke Kafka Procedure dengan menggunakan KafkaTemplate dengan nama topic customer-topic. Dalam service ini, kita menjalankan operasi Create, Read, Update, dan Delete (CRUD) secara simultan ke basis data PostgreSQL dan Elasticsearch:
+
+// CustomerService.java
+package com.yourcompany.ecommerce.service;
+
+// Import Dependency
+
+@Service
+@CacheConfig(cacheNames = { "customers" })
+@RequiredArgsConstructor
+public class CustomerService {
+
+  private final CustomerRepository customerRepository;
+  private final CustomerElasticRepository customerElasticRepository;
+  private final ObjectMapper objectMapper;
+  private final KafkaTemplate<String, String> kafkaTemplate;
+
+  @Cacheable
+  public List<CustomerDTO> getAllCustomers() {
+    List<Customer> customers = customerRepository.findAll();
+    return customers.stream()
+        .map(this::convertToDTO)
+        .collect(Collectors.toList());
+  }
+
+  public Iterable<CustomerElastic> getCustomerElasticsearch() {
+    return customerElasticRepository.findAll();
+  }
+
+  @Cacheable(key = "#customerId")
+  public CustomerDTO getCustomerById(Long customerId) {
+    Customer customer = customerRepository.findById(customerId)
+        .orElseThrow(() -> new RuntimeException("Customer not found with id: " + customerId));
+    return convertToDTO(customer);
+  }
+
+  public CustomerDTO createCustomer(InputCustomerDTO inputCustomerDTO) throws JsonProcessingException {
+    Customer newCustomer = convertToEntity(inputCustomerDTO);
+    Customer savedCustomer = customerRepository.save(newCustomer);
+
+    CustomerElastic customerElastic = convertToElasticEntity(savedCustomer);
+    customerElasticRepository.save(customerElastic);
+
+    String jsonNewCustomer = objectMapper.writeValueAsString(savedCustomer);
+    kafkaTemplate.send("customer-topic", jsonNewCustomer);
+
+    return convertToDTO(savedCustomer);
+  }
+
+  public CustomerDTO updateCustomer(Long customerId, InputCustomerDTO inputCustomerDTO) {
+    Customer existingCustomer = customerRepository.findById(customerId)
+        .orElseThrow(() -> new RuntimeException("Customer not found with id: " + customerId));
+    CustomerElastic existingCustomerElastic = customerElasticRepository.findById(customerId)
+        .orElseThrow(() -> new RuntimeException("Customer not found with id: " + customerId));
+
+    existingCustomer.setName(inputCustomerDTO.getName());
+    existingCustomer.setAddress(inputCustomerDTO.getAddress());
+    existingCustomer.setCity(inputCustomerDTO.getCity());
+    existingCustomer.setProvince(inputCustomerDTO.getProvince());
+    existingCustomer.setStatus(inputCustomerDTO.getStatus());
+
+    existingCustomerElastic.setName(inputCustomerDTO.getName());
+    existingCustomerElastic.setAddress(inputCustomerDTO.getAddress());
+    existingCustomerElastic.setCity(inputCustomerDTO.getCity());
+    existingCustomerElastic.setProvince(inputCustomerDTO.getProvince());
+    existingCustomerElastic.setStatus(inputCustomerDTO.getStatus());
+
+    Customer updatedCustomer = customerRepository.save(existingCustomer);
+    customerElasticRepository.save(existingCustomerElastic);
+
+    return convertToDTO(updatedCustomer);
+  }
+
+  public void deleteCustomer(Long customerId) {
+    customerRepository.deleteById(customerId);
+    customerElasticRepository.deleteById(customerId);
+  }
+
+  private CustomerElastic convertToElasticEntity(Customer customer) {
+    return CustomerElastic.builder()
+        .id(customer.getCustomerId())
+        .name(customer.getName())
+        .address(customer.getAddress())
+        .city(customer.getCity())
+        .province(customer.getProvince())
+        .status(customer.getStatus())
+        .build();
+  }
+
+  private CustomerDTO convertToDTO(Customer customer) {
+    return CustomerDTO.builder()
+        .customerId(customer.getCustomerId())
+        .name(customer.getName())
+        .address(customer.getAddress())
+        .city(customer.getCity())
+        .province(customer.getProvince())
+        .status(customer.getStatus())
+        .build();
+  }
+
+  private Customer convertToEntity(InputCustomerDTO inputCustomerDTO) {
+    return Customer.builder()
+        .name(inputCustomerDTO.getName())
+        .address(inputCustomerDTO.getAddress())
+        .city(inputCustomerDTO.getCity())
+        .province(inputCustomerDTO.getProvince())
+        .status(inputCustomerDTO.getStatus())
+        .build();
+  }
+
+}
+
+Kemudian buat juga membuat file service untuk consumer data dari kafka yang kita buat pada folder kafka/KafkaConsumer dan disini kita hanya melakukan logging untuk memastikan consumer dari kafka berjalan dengan baik:
+
+// KafkaConsumer.java
+package com.yourcompany.ecommerce.kafka;
+
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Service
+@Slf4j
+public class KafkaConsumer {
+
+  @KafkaListener(topics = "customer-topic", groupId = "customer-group")
+  public void consumeMessage(String message) {
+    log.info("Data Listener From Kafka : {}", message);
+  }
+}
+
+Langkah 10: Membuat Controller
+
+Buat REST API Controller CustomerController untuk menangani permintaan HTTP:
+
+// CustomerController.java
+package com.yourcompany.ecommerce.controllers;
+
+// Import Dependency
+
+@RestController
+@RequestMapping("/api/v1/customers")
+@RequiredArgsConstructor
+public class CustomerController {
+
+    private final CustomerService customerService;
+
+    @GetMapping
+    public List<CustomerDTO> getAllCustomers() {
+        return customerService.getAllCustomers();
+    }
+
+    @GetMapping("/search")
+    public Iterable<CustomerElastic> getProducts() {
+        return customerService.getCustomerElasticsearch();
+    }
+
+    @GetMapping("/{customerId}")
+    public CustomerDTO getCustomerById(@PathVariable Long customerId) {
+        return customerService.getCustomerById(customerId);
+    }
+
+    @PostMapping
+    public CustomerDTO createCustomer(@RequestBody InputCustomerDTO inputCustomerDTO) throws JsonProcessingException {
+        return customerService.createCustomer(inputCustomerDTO);
+    }
+
+    @PutMapping("/{customerId}")
+    public CustomerDTO updateCustomer(@PathVariable Long customerId, @RequestBody InputCustomerDTO inputCustomerDTO) {
+        return customerService.updateCustomer(customerId, inputCustomerDTO);
+    }
+
+    @DeleteMapping("/{customerId}")
+    public ResponseEntity<String> deleteCustomer(@PathVariable Long customerId) {
+        customerService.deleteCustomer(customerId);
+        return ResponseEntity.ok().body("Customer Deleted Successfully!");
+    }
+}
+
+Kesimpulan
+
+Dalam artikel ini, kita telah membahas langkah-langkah untuk mengintegrasikan Redis, Kafka, Elastic Search, dan PostgreSQL dalam aplikasi Spring Boot. Mulai dari konfigurasi proyek hingga pembuatan kontroler, layanan, dan repositori, kita telah melibatkan berbagai teknologi untuk memenuhi kebutuhan pengembangan aplikasi modern. Dengan mengikuti langkah-langkah ini, pembaca dapat dengan mudah mengimplementasikan integrasi ini dalam proyek Spring Boot.
